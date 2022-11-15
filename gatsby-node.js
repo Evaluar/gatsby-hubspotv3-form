@@ -1,40 +1,49 @@
-const _ = require(`lodash`)
-const Promise = require(`bluebird`)
-const path = require(`path`)
-const slash = require(`slash`)
-const axios = require("axios")
-const crypto = require("crypto")
-var fs = require("fs")
+import * as _ from 'lodash'
+import * as axios from 'axios'
+import * as crypto from 'crypto'
 
 exports.sourceNodes = async ({ actions }, configOptions) => {
   try {
     const TOKEN_ACCESS = configOptions.apiKey
     const PORTAL_ID = configOptions.portalId
     if (!TOKEN_ACCESS) throw new Error("No Hubspot API key provided")
+    if (!PORTAL_ID) throw new Error("No Hubspot Portal Id provided")
+
     const { createNode } = actions
-    const fetchAllFormNodes = await axios.get(
-      `https://api.hubapi.com/marketing/v3/forms/?limit=90&formTypes=hubspot`, 
-        {
-          headers: {
-            'Authorization': `Bearer ${TOKEN_ACCESS}`,
-            'Content-Type': 'application/json'
-          }
-        },
-    )
-    const response = await fetchAllFormNodes.data
-    const response2 = await axios.get(response.paging.next.link,{
-      headers: {
-        'Authorization': `Bearer ${TOKEN_ACCESS}`,
-        'Content-Type': 'application/json'
-      }
-    })
-    const results = _.union(response.results, response2.data.results)
     
-    console.log(results.length)
-    results.map((item, index) => {
-      if(index === 0) {
-        console.log(item)
+    const formsList = []
+    
+    const apiCall = async function(url){
+      const apiResponse = await axios.get(url, {
+        headers: {
+          'Authorization': `Bearer ${TOKEN_ACCESS}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = _.get(apiResponse, 'data')
+      
+      data.results.map((formSummary) => {
+        formsList.push(formSummary)
+      })
+      
+      return data
+    };
+    
+    const recursiveCallApi = async function(results) {
+      const nextPageLink = _.get(results, 'paging.next.link', null)
+      if(nextPageLink) {
+        const resultsRecursived = await apiCall(nextPageLink)
+        await recursiveCallApi(resultsRecursived)
+      } else {
+        return
       }
+    }
+
+    const firstCallResult = await apiCall('https://api.hubapi.com/marketing/v3/forms/?limit=90&formTypes=hubspot')
+    await recursiveCallApi(firstCallResult)
+    
+    formsList.map((item, index) => {
       const formNode = {
         id: item.id ,
         portalId: PORTAL_ID,
