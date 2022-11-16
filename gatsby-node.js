@@ -1,6 +1,7 @@
-import * as _ from 'lodash'
-import * as axios from 'axios'
-import * as crypto from 'crypto'
+const _ = require('lodash')
+const axios = require('axios')
+const crypto = require('crypto')
+
 
 exports.sourceNodes = async ({ actions }, configOptions) => {
   try {
